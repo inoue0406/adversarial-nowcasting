@@ -1,0 +1,13 @@
+*/__pycache__/
+*/*/__pycache__/
+*/*/*/__pycache__/
+.vscode/
+test/
+data*/
+data
+run/log*
+run/result*
+run/old*
+src_post/log*
+src_prep/log*
+*/*/build/
