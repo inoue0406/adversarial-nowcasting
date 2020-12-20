@@ -40,6 +40,23 @@ device = torch.device("cuda")
 # GAN model
 from LightweightGAN import LightweightGAN
 
+def GAN_discriminator(input,D,gan_img_size,batch_size):
+    # force [0-1] range
+    input = torch.clamp(input,min=0.0,max=1.0)
+    # upsample to 256x256 for GAN input
+    input_GAN = F.interpolate(torch.squeeze(input),(gan_img_size,gan_img_size))
+    input_GAN = root_scaling(input_GAN) # scaling for GAN
+    input_GAN = torch.stack(3*[input_GAN],axis=2) # convert to 3 channels
+    disc = torch.zeros(input_GAN.shape[0:2])
+    for b in range(batch_size):
+        disc_input, _ , _ = D(input_GAN[b,:,:,:,:].detach())
+        disc[b,:]=disc_input.squeeze()
+    return disc
+
+def root_scaling(X):
+    a = 1/3.0    # "cubic root"
+    return (X)**a
+
 def mod_str_interval(inte_str):
     # a tweak for decent filename 
     inte_str = inte_str.replace('(','')
@@ -125,84 +142,24 @@ def plot_comp_prediction(data_path,filelist,model_name,model_fname,model_fname_g
         target = scl.fwd(sample_batched['future']).cuda()
         output = model(input)
 
-        # upsample to 256x256 for GAN input
-        input_GAN = F.interpolate(input,(gan_img_size,gan_img_size))
-        #fake_output, fake_output_32x32, _ = D(generated_images.detach())
-        import pdb;pdb.set_trace()
+        # apply GAN discriminator
+        disc_input = GAN_discriminator(input,D,gan_img_size,batch_size)
+        disc_target = GAN_discriminator(target,D,gan_img_size,batch_size)
+        disc_output = GAN_discriminator(output,D,gan_img_size,batch_size)
         
         # Output only selected data in df_sampled
         for n,fname in enumerate(fnames):
             if (not (fname in df_sampled['fname'].values)):
                 print('skipped:',fname)
-                continue
-            # convert to cpu
-            pic = target[n,:,0,:,:].cpu()
-            pic_tg = scl.inv(pic.data.numpy())
-            pic = output[n,:,0,:,:].cpu()
-            pic_pred = scl.inv(pic.data.numpy())
-            # print
-            print('Plotting: ',fname,np.max(pic_tg),np.max(pic_pred))
-            # plot
-            cm = Colormap_JMA()
-            if mode == 'png_whole': # output as stationary image
-                fig, ax = plt.subplots(figsize=(20, 10))
-                fig.suptitle("Precip prediction starting at: "+fname+"\n"+case, fontsize=20)
-                for nt in range(6):
-                #for nt in range(1,12,2):
-                    id = nt*2+1
-                    pos = nt+1
-                    dtstr = str((id+1)*5)
-                    # target
-                    plt.subplot(2,6,pos)
-                    #im = plt.imshow(pic_tg[id,:,:],vmin=0,vmax=50,cmap=cm,origin='lower')
-                    im = plt.imshow(pic_tg[id,:,:].transpose(),vmin=0,vmax=50,cmap=cm,origin='lower')
-                    plt.title("true:"+dtstr+"min")
-                    plt.grid()
-                    # predicted
-                    plt.subplot(2,6,pos+6)
-                    #im = plt.imshow(pic_pred[id,:,:],vmin=0,vmax=50,cmap=cm,origin='lower')
-                    im = plt.imshow(pic_pred[id,:,:].transpose(),vmin=0,vmax=50,cmap=cm,origin='lower')
-                    plt.title("pred:"+dtstr+"min")
-                    plt.grid()
-                fig.subplots_adjust(right=0.95)
-                cbar_ax = fig.add_axes([0.96, 0.15, 0.01, 0.7])
-                fig.colorbar(im, cax=cbar_ax)
-                # save as png
-                i = df_sampled.index[df_sampled['fname']==fname]
-                i = int(i.values)
-                interval = df_sampled['rcategory'].iloc[i]
-                str_int = 'I{}-{}_'.format(abs(interval.left),interval.right)
-                plt.savefig(pic_path+'comp_pred_'+str_int+fname+'.png')
-                plt.close()
-            if mode == 'png_ind': # output as invividual image
-                for nt in range(6):
-                    fig, ax = plt.subplots(figsize=(8, 4))
-                    fig.suptitle("Precip prediction starting at: "+fname+"\n"+case, fontsize=10)
-                    #        
-                    id = nt*2+1
-                    pos = nt+1
-                    dtstr = str((id+1)*5)
-                    # target
-                    plt.subplot(1,2,1)
-                    im = plt.imshow(pic_tg[id,:,:],vmin=0,vmax=50,cmap=cm,origin='lower')
-                    plt.title("true:"+dtstr+"min")
-                    plt.grid()
-                    # predicted
-                    plt.subplot(1,2,2)
-                    im = plt.imshow(pic_pred[id,:,:],vmin=0,vmax=50,cmap=cm,origin='lower')
-                    plt.title("pred:"+dtstr+"min")
-                    plt.grid()
-                    # color bar
-                    fig.subplots_adjust(right=0.93,top=0.85)
-                    cbar_ax = fig.add_axes([0.94, 0.15, 0.01, 0.7])
-                    fig.colorbar(im, cax=cbar_ax)
-                    # save as png
-                    i = df_sampled.index[df_sampled['fname']==fname]
-                    i = int(i.values)
-                    interval = mod_str_interval(df_sampled['rcategory'].iloc[i])
-                    nt_str = '_dt%02d' % nt
-                    plt.savefig(pic_path+'comp_pred_'+interval+fname+nt_str+'.png')
-                    plt.close()
+                continue            
+            vi = disc_input[0,:].cpu().data.numpy()
+            vt = disc_target[0,:].cpu().data.numpy()
+            vo = disc_output[0,:].cpu().data.numpy()
+            df = pd.DataFrame({"time":(np.arange(24)+1)*5,
+                               "truth":np.concatenate([vi,vt]),
+                               "model":np.concatenate([vi,vo])})
+            fname2 = fname.replace(".h5",".csv")
+            df.to_csv(pic_path+'disc_output_'+fname2)
         # free GPU memory (* This seems to be necessary if going without backprop)
         del input,target,output
         
@@ -235,7 +192,7 @@ if __name__ == '__main__':
     data_path = '../data/data_kanto/'
     filelist = '../data/valid_simple_JMARadar.csv'
     model_fname = case + '/trained_CLSTM.dict'
-    pic_path = case + '/png/'
+    pic_path = case + '/csv/'
 
     data_scaling = 'linear'
     
