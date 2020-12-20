@@ -5,6 +5,8 @@ import torch
 import torchvision
 import numpy as np
 import torch.utils.data as data
+from torch import nn, einsum
+import torch.nn.functional as F
 
 import pandas as pd
 import h5py
@@ -35,6 +37,9 @@ from models_trajGRU.trajGRU import TrajGRU
 from models_trajGRU.convLSTM import ConvLSTM
 device = torch.device("cuda")
 
+# GAN model
+from LightweightGAN import LightweightGAN
+
 def mod_str_interval(inte_str):
     # a tweak for decent filename 
     inte_str = inte_str.replace('(','')
@@ -50,9 +55,35 @@ def plot_comp_prediction(data_path,filelist,model_name,model_fname,model_fname_g
     if not os.path.exists(pic_path):
         os.mkdir(pic_path)
 
-    # load gan model
-    gan = torch.load(model_fname_gan)
-    import pdb;pdb.set_trace()
+    gan_img_size = 256
+    GAN = LightweightGAN(
+        optimizer="adam",
+        lr = 2e-4,
+        latent_dim = 256,
+        attn_res_layers = [32],
+        sle_spatial = False,
+        image_size = gan_img_size,
+        ttur_mult = 1.,
+        fmap_max = 512,
+        disc_output_size = 1,
+        transparent = False,
+        rank = 0
+    )
+    load_data = torch.load(model_fname_gan)
+    
+    print("number of GAN weights", len(load_data["GAN"].keys()))
+
+    GAN.load_state_dict(load_data['GAN'])
+
+    # Generator and Discriminator
+    G = GAN.G
+    D = GAN.D
+    D_aug = GAN.D_aug
+
+    #latent_dim = 256
+    #latents = torch.randn(batch_size, latent_dim).cuda()
+    #generated_images = G(latents)
+    #fake_output, fake_output_32x32, _ = D(generated_images.detach())
 
     # dataset
     valid_dataset = JMARadarDataset(root_dir=data_path,
@@ -90,11 +121,14 @@ def plot_comp_prediction(data_path,filelist,model_name,model_fname,model_fname_g
             print("skipped batch:",i_batch)
             continue
         # apply the trained model to the data
-        input = Variable(scl.fwd(sample_batched['past'])).cuda()
-        target = Variable(scl.fwd(sample_batched['future'])).cuda()
-        #input = Variable(sample_batched['past']).cpu()
-        #target = Variable(sample_batched['future']).cpu()
+        input = scl.fwd(sample_batched['past']).cuda()
+        target = scl.fwd(sample_batched['future']).cuda()
         output = model(input)
+
+        # upsample to 256x256 for GAN input
+        input_GAN = F.interpolate(input,(gan_img_size,gan_img_size))
+        #fake_output, fake_output_32x32, _ = D(generated_images.detach())
+        import pdb;pdb.set_trace()
         
         # Output only selected data in df_sampled
         for n,fname in enumerate(fnames):
@@ -196,6 +230,7 @@ if __name__ == '__main__':
     # GAN data path
     case_gan = "result_GAN_201214_testrun_alljapan"
     model_fname_gan = case_gan + '/model_150.pt'
+    #model_fname_gan = case_gan + '/model_1.pt'
 
     data_path = '../data/data_kanto/'
     filelist = '../data/valid_simple_JMARadar.csv'
