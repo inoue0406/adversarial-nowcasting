@@ -78,6 +78,16 @@ def parse_opts():
         type=str,
         help='Transfer Learning Model Path')
     parser.add_argument(
+        '--gan_path',
+        default='None',
+        type=str,
+        help='Pretrained GAN Model Path')
+    parser.add_argument(
+        '--gan_coeff',
+        default=1.0,
+        type=float,
+        help='GAN disc loss coeff')
+    parser.add_argument(
         '--tdim_use',
         default=12,
         type=int,
