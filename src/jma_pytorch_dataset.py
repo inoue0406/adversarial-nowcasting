@@ -50,6 +50,7 @@ class JMARadarDataset(data.Dataset):
         sample = {'past': rain_X, 'future': rain_Y,
                   'fnames_past':fnames_past,'fnames_future':fnames_future}
         #sample = {'past': rain_X, 'future': rain_Y}
+        print("filenames for this batch",fnames_past)
 
         if self.transform:
             sample = self.transform(sample)

@@ -39,7 +39,8 @@ class GAN_D_MSE_loss(nn.Module):
     
     def forward(self, output, target):
         lmse = self.mseloss(output,target)
-        lgan = -1.0 * self.weight*torch.sum(self.GAN_discriminator(output))
+        #lgan = 1.0 * self.weight*torch.sum(1-self.GAN_discriminator(output))
+        lgan = 1.0 * self.weight*torch.sum(self.GAN_discriminator(output))
         print("lmse,lgan=",lmse.data.cpu().numpy(),lgan.data.cpu().numpy())
         return lmse + lgan
 
