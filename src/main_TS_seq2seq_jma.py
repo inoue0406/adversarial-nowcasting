@@ -58,11 +58,13 @@ if __name__ == '__main__':
         # loading datasets
         train_dataset = JMATSDataset(csv_data=opt.train_path,
                                      root_dir=opt.data_path,
+                                     root_dir_grid=None,
                                      tdim_use=opt.tdim_use,
                                      transform=None)
     
         valid_dataset = JMATSDataset(csv_data=opt.valid_path,
                                      root_dir=opt.data_path,
+                                     root_dir_grid=None,
                                      tdim_use=opt.tdim_use,
                                      transform=None)
     
@@ -185,7 +187,8 @@ if __name__ == '__main__':
 
         # prepare loader
         test_dataset = JMATSDataset(csv_data=opt.test_path,
-                                    root_dir=opt.test_data_path,
+                                    root_dir=opt.test_data_latent,
+                                    root_dir_grid=opt.test_data_grid,
                                     tdim_use=opt.tdim_use,
                                     transform=None)
         test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
@@ -193,9 +196,11 @@ if __name__ == '__main__':
                                                   num_workers=4,
                                                   drop_last=True,
                                                   shuffle=False)
-        
+        dd = next(iter(test_dataset))
+
         # testing for the trained model
-        test_epoch(test_loader,model,GAN,loss_fn,scl,opt)
+        for threshold in opt.eval_threshold:
+            test_epoch(test_loader,model,GAN,loss_fn,scl,opt,threshold)
 
     # output elapsed time
     logfile.write('End time: '+time.ctime()+'\n')
