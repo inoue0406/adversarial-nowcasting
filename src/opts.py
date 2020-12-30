@@ -16,6 +16,10 @@ def parse_opts():
         type=str,
         help='directory path of valid data')
     parser.add_argument(
+        '--test_data_path',
+        type=str,
+        help='directory path of test data')
+    parser.add_argument(
         '--data_scaling',
         default='linear',
         type=str,

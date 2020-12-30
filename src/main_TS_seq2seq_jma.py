@@ -18,6 +18,9 @@ from train_valid_epoch_ts import *
 from utils import Logger
 from opts import parse_opts
 
+# GAN model
+from LightweightGAN import LightweightGAN
+
 def count_parameters(model,f):
     for name,p in model.named_parameters():
         f.write("name,"+name+", Trainable, "+str(p.requires_grad)+",#params, "+str(p.numel())+"\n")
@@ -156,22 +159,43 @@ if __name__ == '__main__':
             print('loading pretrained model:',model_fname)
             model = torch.load(model_fname)
             loss_fn = torch.nn.MSELoss()
-            
+
+        # load GAN for spatial forecasting
+        gan_img_size = 256
+        GAN = LightweightGAN(
+            optimizer="adam",
+            lr = 2e-4,
+            latent_dim = 256,
+            attn_res_layers = [32],
+            sle_spatial = False,
+            image_size = gan_img_size,
+            ttur_mult = 1.,
+            fmap_max = 512,
+            disc_output_size = 1,
+            transparent = False,
+            rank = 0
+        )
+        load_data = torch.load(opt.gan_path)
+        print("number of GAN weights", len(load_data["GAN"].keys()))
+        GAN.load_state_dict(load_data['GAN'])
+        GAN.cuda()
+        # freeze all GAN parameters
+        for parameter in GAN.parameters():
+            parameter.requires_grad = False
+
         # prepare loader
         test_dataset = JMATSDataset(csv_data=opt.test_path,
-                                     csv_anno=opt.test_anno_path,
-                                     use_var=opt.use_var,
-                                     root_dir=None,
-                                     tdim_use=opt.tdim_use,
-                                     transform=None)
+                                    root_dir=opt.test_data_path,
+                                    tdim_use=opt.tdim_use,
+                                    transform=None)
         test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                                                   batch_size=opt.batch_size,
-                                                   num_workers=4,
-                                                   drop_last=True,
-                                                   shuffle=False)
+                                                  batch_size=opt.batch_size,
+                                                  num_workers=4,
+                                                  drop_last=True,
+                                                  shuffle=False)
         
         # testing for the trained model
-        test_epoch(test_loader,model,loss_fn,opt)
+        test_epoch(test_loader,model,GAN,loss_fn,scl,opt)
 
     # output elapsed time
     logfile.write('End time: '+time.ctime()+'\n')

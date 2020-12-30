@@ -3,7 +3,7 @@ from torch.autograd import Variable
 import torchvision
 import numpy as np
 import torch.utils.data as data
-import torchvision.transforms as transforms
+import torch.nn.functional as F
 
 from jma_pytorch_dataset import *
 from utils import AverageMeter, Logger
@@ -62,44 +62,17 @@ def train_epoch(epoch,num_epochs,train_loader,model,loss_fn,optimizer,train_logg
     del input,target,output,loss
 
 # --------------------------
-# Validation
-# --------------------------
-
-def valid_epoch(epoch,num_epochs,valid_loader,model,loss_fn,valid_logger,opt):
-    print('validation at epoch {}'.format(epoch))
-    
-    losses = AverageMeter()
-        
-    # evaluation mode
-    model.eval()
-
-    for i_batch, sample_batched in enumerate(valid_loader):
-        input = Variable(sample_batched['features'].float()).cuda()
-        target = Variable(sample_batched['future'].float()).cuda()
-        # Forward
-        # validation and testing process SHOULD NOT USE teacher forcing
-        output = model(input, target, teacher_forcing_ratio = 0.0)
-        loss = loss_fn(output, target)
-
-        # for logging
-        losses.update(loss.item(), input.size(0))
-
-        if (i_batch+1) % 1 == 0:
-            print ('Valid Epoch [%d/%d], Iter [%d/%d] Loss: %.4e' 
-                   %(epoch, num_epochs, i_batch+1, len(valid_loader.dataset)//valid_loader.batch_size, loss.item()))
-            
-    valid_logger.log({
-        'epoch': epoch,
-        'loss': losses.avg})
-    # free gpu memory
-    del input,target,output,loss
-
-# --------------------------
 # Test
 # --------------------------
 
-def test_epoch(test_loader,model,loss_fn,opt):
+def root_scaling_inv(X):
+    a = 1/3.0    # "cubic root"
+    return (X)**(1/a)
+
+def test_epoch(test_loader,model,GAN,loss_fn,scl,opt):
     print('Testing for the model')
+
+    size_org = 200
     
     # initialize
     RMSE_all = np.empty((0,opt.tdim_use),float)
@@ -112,12 +85,21 @@ def test_epoch(test_loader,model,loss_fn,opt):
 
     for i_batch, sample_batched in enumerate(test_loader):
         past = sample_batched['past'].float()
-        input = Variable(scl.fwd(sample_batched['features'].float())).cuda()
-        target = Variable(scl.fwd(sample_batched['future'].float())).cuda()
+        input = Variable(sample_batched['past'].float()).cuda()
+        target = Variable(sample_batched['future'].float()).cuda()
         # Forward
-        # validation and testing process SHOULD NOT USE teacher forcing
-        output = model(input, target, teacher_forcing_ratio = 0.0)
+        output = model(input)
         loss = loss_fn(output, target)
+        
+        # apply GAN to generate images
+        
+        for t in range(opt.tdim_use):
+            output_images = GAN.G(output[:,t,:])
+            output_images = F.interpolate(output_images,(size_org,size_org))
+            output_images = root_scaling_inv(output_images)
+            output_images = torch.mean(output_images,axis=1) # crush channel axis
+            import pdb;pdb.set_trace()
+        
         # concat all prediction data
         Xtrue = scl.inv(target.data.cpu().numpy().squeeze())
         Xmodel = scl.inv(output.data.cpu().numpy().squeeze())
