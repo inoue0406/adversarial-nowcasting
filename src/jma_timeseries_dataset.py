@@ -81,11 +81,15 @@ class JMATSDataset(data.Dataset):
             rain_Y = rain_Y[:self.tdim_use,None,:,:] # add "channel" dimension as 1
             h5file.close()
             
+            # extract only file name
+            fnames_past = h5_name_X.split("/")[-1]
+            fnames_future = h5_name_Y.split("/")[-1]
+            
             sample = {'past': rain_past,
                       'future': rain_future,
                       'past_grid': rain_X,
                       'future_grid': rain_Y,
-                      'fnames_past':h5_name_X,'fnames_future':h5_name_Y}
+                      'fnames_past':fnames_past,'fnames_future':fnames_future}
         
         if self.transform:
             sample = self.transform(sample)

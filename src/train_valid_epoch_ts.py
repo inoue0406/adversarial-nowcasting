@@ -96,9 +96,17 @@ def test_epoch(test_loader,model,GAN,loss_fn,scl,opt,threshold):
         loss = loss_fn(output, target)
         
         # apply GAN to generate images
+        input_pred = np.zeros((opt.batch_size,opt.tdim_use,1,size_org,size_org))
         output_pred = np.zeros((opt.batch_size,opt.tdim_use,1,size_org,size_org))
         
         for t in range(opt.tdim_use):
+            # input
+            output_images = GAN.G(output[:,t,:])
+            output_images = F.interpolate(output_images,(size_org,size_org))
+            output_images = root_scaling_inv(output_images)
+            output_images = torch.mean(output_images,axis=1) # crush channel axis
+
+            # output
             output_images = GAN.G(output[:,t,:])
             output_images = F.interpolate(output_images,(size_org,size_org))
             output_images = root_scaling_inv(output_images)
