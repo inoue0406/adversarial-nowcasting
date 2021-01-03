@@ -155,7 +155,7 @@ if __name__ == '__main__':
                 # learning rate scheduler
                 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=opt.lr_decay)
                 
-                for n in range(100):
+                for n in range(opt.n_epochs):
                     # Generator
                     generated_images = GAN.G(latents)
                 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                     loss_mse = loss_fn(input_gan[b,:,:,:,:],generated_images)
                     # consecutive images should be continuous
                     loss_cont = loss_fn(latents[1:,:],latents[:-1,:])
-                    loss = loss_mse + loss_cont
+                    loss = loss_mse + opt.loss_weights[0] * loss_cont
             
                     # Forward + Backward + Optimize
                     optimizer.zero_grad()

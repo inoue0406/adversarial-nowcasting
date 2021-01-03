@@ -203,9 +203,15 @@ if __name__ == '__main__':
     #model_name = 'clstm'
     #model_name = 'trajgru'
 
-    data_latent = "result_20201229_gan_convert_to_latent_kanto_valid/"
+    #data_latent = "result_20201229_gan_convert_to_latent_kanto_valid/"
+    #data_latent = "result_20210101_gan_convert_latent_wt0_kanto_valid/"
+    #data_latent = "result_20210101_gan_convert_latent_wt10_kanto_valid/"
+    data_latent = "result_20210102_gan_convert_latent_wt0_1000_kanto_valid/"
+    data_latent = "result_20210102_gan_convert_latent_wt10_1000_kanto_valid/"
+    data_latent = "result_20210102_gan_convert_latent_wt1_1000_kanto_valid/"
     data_grid = "../data/data_kanto/"
-    filelist = '../data/gan_latent_kanto_2017_full.csv'
+    #filelist = '../data/gan_latent_kanto_2017_full.csv'
+    filelist = '../data/gan_latent_kanto_2017_3days.csv'
     model_fname = case + '/trained_seq2seq.model'
     pic_path = case + '/png/'
 
